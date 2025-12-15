@@ -1,175 +1,153 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
 
-# --- 1. إعدادات الصفحة ---
-st.set_page_config(page_title="MVC Pro Terminal", layout="wide", page_icon="💎")
+# --- إعدادات الصفحة ---
+st.set_page_config(page_title="Forensic Alpha V7.7", layout="wide", page_icon="⚖️")
 
+# تصميم مطابق لتقريرك (داكن واحترافي)
 st.markdown("""
 <style>
-    .stApp {background-color: #0e1117; color: #fafafa;}
-    .metric-box {
-        background-color: #262730; 
-        border: 1px solid #464b5d;
-        padding: 10px;
-        border-radius: 5px;
-        text-align: center;
+    .stApp {background-color: #0e1117; color: #e0e0e0;}
+    .header-box {border-bottom: 2px solid #464b5d; padding-bottom: 10px; margin-bottom: 20px;}
+    .audit-box {
+        background-color: #1a1c24; 
+        border: 1px solid #333; 
+        padding: 20px; 
+        border-radius: 5px; 
+        margin-bottom: 15px;
     }
-    .audit-pass {color: #00ff00; font-weight: bold;}
-    .audit-fail {color: #ff2b2b; font-weight: bold;}
-    .audit-neutral {color: #b0b0b0;}
+    .highlight {color: #ffd700; font-weight: bold;}
+    .pass {color: #00ff00; font-weight: bold;}
+    .fail {color: #ff2b2b; font-weight: bold;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. محرك البيانات ---
-def get_data(ticker):
+def analyze_stock(ticker):
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
         
-        # جلب السعر
+        # --- استخراج البيانات الجنائية ---
         price = info.get('currentPrice') or info.get('regularMarketPrice')
-        if not price:
-            hist = stock.history(period='1d')
-            if not hist.empty:
-                price = hist['Close'].iloc[-1]
-            else:
-                return None, "❌ لم نتمكن من العثور على سعر. تأكد من الرمز."
-
-        # جلب البيانات المالية
-        financials = stock.financials
-
-        data = {
+        mkt_cap = info.get('marketCap', 0)
+        
+        # 1. الكنز المدفون (Cash Analysis)
+        total_cash = info.get('totalCash', 0)
+        total_debt = info.get('totalDebt', 0)
+        cash_per_share = info.get('totalCashPerShare', 0)
+        cash_percent = (total_cash / mkt_cap) * 100 if mkt_cap else 0
+        enterprise_value = mkt_cap - total_cash + total_debt
+        
+        # 2. التقييم (Valuation)
+        pe_fwd = info.get('forwardPE', 0)
+        peg = info.get('pegRatio', 0)
+        
+        # 3. النمو (Growth)
+        rev_growth = (info.get('revenueGrowth', 0) or 0) * 100
+        
+        return {
             "Symbol": ticker,
             "Price": price,
-            "MarketCap": info.get('marketCap', 0),
-            "PEG": info.get('pegRatio', None),
-            "PS": info.get('priceToSalesTrailing12Months', None),
-            "Growth_Est": (info.get('revenueGrowth', 0) or 0) * 100,
-            "ROIC": (info.get('returnOnEquity', 0) or 0) * 100,
-            "News": stock.news if hasattr(stock, 'news') else [],
-            "Financials": financials
+            "MktCap": mkt_cap,
+            "Cash": total_cash,
+            "Debt": total_debt,
+            "Cash_Percent": cash_percent,
+            "EV": enterprise_value,
+            "PE_Fwd": pe_fwd,
+            "PEG": peg,
+            "Growth": rev_growth,
+            "News": stock.news[:3] if hasattr(stock, 'news') else []
         }
-
-        # حساب الديون
-        try:
-            total_debt = info.get('totalDebt', 0) or 0
-            cash = info.get('totalCash', 0) or 0
-            ebitda = info.get('ebitda', 1) or 1
-            net_debt = total_debt - cash
-            data['NetDebt_EBITDA'] = net_debt / ebitda
-        except:
-            data['NetDebt_EBITDA'] = 0.0
-
-        return data, None
-
     except Exception as e:
-        return None, f"خطأ تقني: {str(e)}"
+        return None
 
-# --- 3. الواجهة والمنهجية ---
-st.sidebar.header("🔍 الرادار")
-symbol = st.sidebar.text_input("الرمز", value="NVDA").upper()
-run_btn = st.sidebar.button("تحليل")
+# --- الواجهة الجانبية ---
+st.sidebar.title("🕵️‍♂️ المحقق الجنائي")
+ticker = st.sidebar.text_input("رمز السهم", value="BIDU").upper()
+run = st.sidebar.button("ابدأ التدقيق")
 
-if symbol:
-    data, err = get_data(symbol)
+if run and ticker:
+    data = analyze_stock(ticker)
     
-    if err:
-        st.error(err)
-    elif data:
-        # --- تطبيق المنهجية (Audit Logic) ---
-        audit_log = []
+    if not data:
+        st.error("لم يتم العثور على البيانات. تأكد من الرمز.")
+    else:
+        # === العنوان ===
+        st.markdown(f"# 📑 تقرير التدقيق الجنائي: {data['Symbol']}")
+        st.markdown(f"### السعر الحالي: ${data['Price']} | القيمة السوقية: ${data['MktCap']/1e9:.2f}B")
         
-        # 1. فحص الإعدام (Kill Switch)
-        is_killed = False
-        if data['NetDebt_EBITDA'] > 3.5:
-            audit_log.append(f"❌ <span class='audit-fail'>فشل الديون:</span> الرافعة {data['NetDebt_EBITDA']:.2f}x (أخطر من 3.5x)")
-            is_killed = True
-        else:
-            audit_log.append(f"✅ <span class='audit-pass'>نجاح الديون:</span> الرافعة {data['NetDebt_EBITDA']:.2f}x (آمنة)")
-
-        if data['Growth_Est'] < -5:
-            audit_log.append(f"❌ <span class='audit-fail'>فشل النمو:</span> انكماش {data['Growth_Est']:.1f}%")
-            is_killed = True
-        else:
-            audit_log.append(f"✅ <span class='audit-pass'>فحص النمو:</span> إيجابي {data['Growth_Est']:.1f}%")
-
-        # تحديد الحكم النهائي
-        verdict = "🧩 HOLD / WATCH"
-        v_color = "#b0b0b0"
+        # === الباب الأول: الطبقة الرقمية الصلبة ===
+        st.markdown("## 📜 الباب الأول: الطبقة الرقمية الصلبة (The Hard Layer)")
         
-        if is_killed:
-            verdict = "☠️ KILL SWITCH"
-            v_color = "#ff2b2b"
-        elif (data['PEG'] is not None and data['PEG'] < 1.2) and data['Growth_Est'] > 15:
-            verdict = "💎 SCRAP ELITE"
-            v_color = "#00ff00"
-            audit_log.append("💎 <span class='audit-pass'>تطابق مواصفات النخبة (PEG منخفض + نمو مرتفع)</span>")
-        elif data['ROIC'] > 15 and data['Growth_Est'] > 10:
-            verdict = "👑 QUALITY COMPOUNDER"
-            v_color = "#ffd700"
-            audit_log.append("👑 <span class='audit-pass'>تطابق مواصفات الجودة (عائد ممتاز + نمو مستقر)</span>")
-        else:
-            audit_log.append("ℹ️ <span class='audit-neutral'>السهم جيد لكنه لا يطابق شروط النخبة الصارمة حالياً.</span>")
+        c1, c2 = st.columns(2)
+        
+        with c1:
+            st.markdown("### 1. الكنز المدفون (Cash Audit)")
+            st.write(f"حجم الكاش في الخزنة: **${data['Cash']/1e9:.2f}B**")
+            st.write(f"نسبة الكاش من قيمة الشركة: **{data['Cash_Percent']:.1f}%**")
+            
+            if data['Cash_Percent'] > 30:
+                st.markdown(f"✅ <span class='pass'>صدمة إيجابية: الشركة عبارة عن بنك ممتلئ بالمال!</span>", unsafe_allow_html=True)
+            else:
+                st.markdown("⚠️ مستوى الكاش طبيعي.")
 
-        # --- العرض ---
-        st.markdown(f"""
-        <div style="border: 2px solid {v_color}; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
-            <h1 style="color: {v_color}; margin:0;">{verdict}</h1>
-            <h3 style="margin-top:5px;">{data['Symbol']} • ${data['Price']:,.2f}</h3>
-        </div>
-        """, unsafe_allow_html=True)
+            # معادلة Enterprise Value
+            st.markdown("#### المعادلة الجنائية (Enterprise Value):")
+            st.code(f"EV = {data['MktCap']/1e9:.1f}B (Cap) - {data['Cash']/1e9:.1f}B (Cash) = {data['EV']/1e9:.1f}B")
+            st.caption("هذا هو السعر الحقيقي الذي تدفعه مقابل النشاط التشغيلي.")
 
-        # عرض تقرير التدقيق (المنهجية المرئية)
-        with st.expander("📋 عرض تقرير التدقيق وتفاصيل المنهجية", expanded=True):
-            for log in audit_log:
-                st.markdown(f"- {log}", unsafe_allow_html=True)
-
-        # الأرقام الرئيسية
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("نمو المبيعات المتوقع", f"{data['Growth_Est']:.1f}%", delta="الهدف > 15%")
-        c2.metric("مكرر PEG", f"{data['PEG']:.2f}" if data['PEG'] else "N/A", delta="الهدف < 1.2", delta_color="inverse")
-        c3.metric("صافي الدين / EBITDA", f"{data['NetDebt_EBITDA']:.1f}x", delta="الحد الأقصى 3.5", delta_color="inverse")
-        c4.metric("العائد ROIC/ROE", f"{data['ROIC']:.1f}%", delta="الهدف > 15%")
+        with c2:
+            st.markdown("### 2. سعر الخردة (The Scrap Test)")
+            st.write(f"مكرر الربحية المتوقع (Fwd P/E): **{data['PE_Fwd']:.2f}x**")
+            st.write(f"معدل النمو: **{data['Growth']:.2f}%**")
+            
+            verdict = ""
+            if data['PE_Fwd'] < 15 and data['Growth'] > 0:
+                verdict = "🔥 PASS (سعر خردة). السهم رخيص جداً."
+            elif data['PE_Fwd'] < 15 and data['Growth'] <= 0:
+                 verdict = "⚠️ رخيص ولكنه لا ينمو (فخ قيمة محتمل)."
+            else:
+                verdict = "❌ غالي مقارنة بالنمو."
+            
+            st.markdown(f"**الحكم:** {verdict}")
 
         st.markdown("---")
 
-        # الرسم البياني والأخبار
-        c_chart, c_news = st.columns([2, 1])
+        # === الباب الثاني: فحص المحرك (Engine Audit) ===
+        st.markdown("## 📊 فحص المحرك (Engine Audit)")
+        
+        # بناء الجدول يدوياً ليكون مطابقاً للتقرير
+        engine_data = {
+            "المعيار": ["نمو الإيرادات", "التقييم (P/E)", "قوة الميزانية (Cash)"],
+            "الأرقام": [f"{data['Growth']:.1f}%", f"{data['PE_Fwd']:.1f}x", f"${data['Cash']/1e9:.1f}B"],
+            "التشخيص": [
+                "⚠️ محرك بارد" if data['Growth'] < 5 else "🚀 محرك قوي",
+                "🔥 رخيص جداً" if data['PE_Fwd'] < 12 else "💰 سعر عادل/غالي",
+                "💎 حصن مالي" if data['Cash_Percent'] > 20 else "ميزانية عادية"
+            ]
+        }
+        df_engine = pd.DataFrame(engine_data)
+        st.table(df_engine)
 
-        with c_chart:
-            st.subheader("📊 مسار الإيرادات")
-            try:
-                fin = data['Financials']
-                if not fin.empty and 'Total Revenue' in fin.index:
-                    rev_hist = fin.loc['Total Revenue'].iloc[:4][::-1]
-                    last_val = rev_hist.iloc[-1]
-                    next_val = last_val * (1 + data['Growth_Est']/100)
-                    years = [d.strftime('%Y') for d in rev_hist.index] + ["Next Year (Est)"]
-                    values = list(rev_hist.values) + [next_val]
-                    colors = ['#1f77b4'] * len(rev_hist) + ['#ff7f0e']
-                    
-                    fig = go.Figure(data=[go.Bar(x=years, y=values, marker_color=colors)])
-                    fig.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("البيانات التاريخية غير متاحة.")
-            except:
-                st.info("تعذر رسم المبيعات.")
-
-        with c_news:
-            st.subheader("📰 آخر الأخبار")
-            if data['News']:
-                for n in data['News']:
-                    # إصلاح مشكلة الروابط
-                    link = n.get('link', '#')
-                    title = n.get('title', 'No Title')
-                    
-                    st.markdown(f"""
-                    <div style="background-color: #1E1E1E; padding: 10px; margin-bottom: 5px; border-radius: 5px;">
-                        <a href="{link}" target="_blank" style="text-decoration: none; color: #4FA8FF; font-size: 0.9em;">{title}</a>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.write("لا توجد أخبار.")
+        # === الحكم النهائي (Final Matrix) ===
+        st.markdown("## 🏆 الحكم النهائي (The Final Matrix)")
+        
+        final_verdict = "🧩 HOLD / WATCH"
+        matrix_msg = "الشركة في المنطقة الرمادية."
+        
+        # منطق المصفوفة V7.7
+        if data['Cash_Percent'] > 40 and data['PE_Fwd'] < 12:
+            final_verdict = "🧩 لعبة أصول (Asset Play)"
+            matrix_msg = "أنت تشتري الدولار بـ 50 سنتاً. المخاطرة محدودة جداً بسبب الكاش الهائل."
+        elif data['Growth'] > 15 and data['PEG'] < 1.2:
+            final_verdict = "💎 Scrap Elite (نخبة الخردة)"
+            matrix_msg = "نمو متفجر بسعر رخيص."
+        elif data['Debt'] > (data['Cash'] * 3):
+            final_verdict = "☠️ Kill Switch (Debt)"
+            matrix_msg = "الشركة غارقة في الديون."
+            
+        st.markdown(f"""
+        <div class="audit-box" style="text-align: center; border: 2px solid #ffd700;">
+            <h1 style="color: #ffd700;">{final_verdict}</h1>
+            <p>{matrix_msg}</p>
