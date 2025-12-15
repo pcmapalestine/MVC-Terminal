@@ -3,8 +3,8 @@ import yfinance as yf
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- 1. إعدادات الصفحة (Design) ---
-st.set_page_config(page_title="Forensic Alpha V7.7", layout="wide", page_icon="⚖️")
+# --- 1. إعدادات الصفحة ---
+st.set_page_config(page_title="Forensic Alpha V10", layout="wide", page_icon="⚖️")
 
 st.markdown("""
 <style>
@@ -17,9 +17,6 @@ st.markdown("""
         margin-bottom: 15px;
         text-align: center;
     }
-    .pass {color: #00ff00; font-weight: bold;}
-    .fail {color: #ff2b2b; font-weight: bold;}
-    .neutral {color: #ffd700; font-weight: bold;}
     .metric-container {
         background-color: #262730;
         padding: 10px;
@@ -30,39 +27,37 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. محرك التحليل الجنائي (Forensic Engine) ---
+# --- 2. محرك التحليل الجنائي ---
 def analyze_stock(ticker):
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
         
-        # جلب السعر
         price = info.get('currentPrice') or info.get('regularMarketPrice')
         if not price:
+            # محاولة بديلة
             hist = stock.history(period='1d')
             if not hist.empty:
                 price = hist['Close'].iloc[-1]
             else:
-                return None, "❌ لم نتمكن من العثور على سعر."
+                return None, "❌ السعر غير متوفر."
 
-        # جلب البيانات المالية
         financials = stock.financials
 
-        # 1. الكنز المدفون (Cash Analysis)
+        # البيانات الأساسية
         mkt_cap = info.get('marketCap', 0)
         total_cash = info.get('totalCash', 0) or 0
         total_debt = info.get('totalDebt', 0) or 0
         
-        # تجنب القسمة على صفر
         cash_percent = (total_cash / mkt_cap * 100) if mkt_cap else 0
         ev = mkt_cap - total_cash + total_debt
 
-        # 2. مؤشرات النمو والتقييم
+        # المؤشرات
         growth = (info.get('revenueGrowth', 0) or 0) * 100
         pe_fwd = info.get('forwardPE', 0) or 0
         ps_ratio = info.get('priceToSalesTrailing12Months', 0) or 0
         
-        # 3. الأخبار (مع الحماية من الأخطاء)
+        # الأخبار
         news_data = stock.news if hasattr(stock, 'news') else []
 
         data = {
@@ -82,11 +77,11 @@ def analyze_stock(ticker):
         return data, None
 
     except Exception as e:
-        return None, f"خطأ تقني: {str(e)}"
+        return None, f"خطأ: {str(e)}"
 
-# --- 3. الواجهة والتنفيذ ---
+# --- 3. الواجهة ---
 st.sidebar.title("🕵️‍♂️ المحقق الجنائي")
-ticker = st.sidebar.text_input("رمز السهم", value="BIDU").upper()
+ticker = st.sidebar.text_input("رمز السهم", value="HITI").upper()
 run = st.sidebar.button("تشغيل التدقيق")
 
 if ticker:
@@ -95,96 +90,97 @@ if ticker:
     if err:
         st.error(err)
     elif data:
-        # === العنوان ===
-        st.markdown(f"# 📑 تقرير التدقيق الجنائي: {data['Symbol']}")
-        st.markdown(f"### السعر الحالي: ${data['Price']:,.2f} | القيمة السوقية: ${data['MktCap']/1e9:.2f}B")
-        
-        # === التحليل والمنهجية (Logic) ===
-        # تحديد الحكم النهائي بناءً على المصفوفة
+        # === منطق الحكم (Matrix Logic) ===
         verdict = "🧩 HOLD / WATCH"
         v_color = "#b0b0b0"
-        why_msg = "الشركة في المنطقة الرمادية."
+        why_msg = "الشركة في المنطقة المحايدة."
 
-        # شروط المصفوفة
+        # القواعد الصارمة
         if data['Debt'] > (data['Cash'] * 3.5) and data['Cash'] > 0:
             verdict = "☠️ KILL SWITCH"
             v_color = "#ff2b2b"
-            why_msg = "الديون مرتفعة جداً (خطر الإفلاس)."
+            why_msg = "الديون خطرة (أكثر من 3.5x الكاش)."
         elif data['Growth'] > 15 and (data['PS'] < 1.5 or data['PE_Fwd'] < 15):
             verdict = "💎 SCRAP ELITE"
             v_color = "#00ff00"
-            why_msg = "نمو قوي بسعر خردة (فرصة نادرة)."
+            why_msg = "نمو ممتاز (>15%) بسعر رخيص."
         elif data['Cash_Percent'] > 30:
             verdict = "🧩 ASSET PLAY"
-            v_color = "#ffd700" # ذهبي
-            why_msg = f"الشركة عبارة عن بنك! الكاش يمثل {data['Cash_Percent']:.1f}% من قيمتها."
+            v_color = "#ffd700"
+            why_msg = f"بنك من المال ({data['Cash_Percent']:.1f}% كاش)."
 
-        # عرض الحكم في صندوق كبير
+        # عرض الصندوق الكبير
         st.markdown(f"""
         <div class="audit-box" style="border-color: {v_color}; box-shadow: 0 0 10px {v_color}40;">
             <h1 style="color: {v_color}; margin:0;">{verdict}</h1>
-            <p style="color: #ccc; margin-top: 10px;">{why_msg}</p>
+            <h3 style="margin-top:5px;">{data['Symbol']} • ${data['Price']:,.2f}</h3>
+            <p style="color: #ccc;">{why_msg}</p>
         </div>
         """, unsafe_allow_html=True)
 
-        # === التفاصيل الجنائية (The Proof) ===
-        st.markdown("## 📜 الباب الأول: الطبقة الرقمية الصلبة")
+        # === الباب الأول: الأرقام الحقيقية (الديناميكية) ===
+        st.markdown("## 📊 التحليل الرقمي المقارن")
         
-        col1, col2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         
-        with col1:
-            st.markdown("### 1. الكنز المدفون (Cash)")
-            st.metric("حجم الكاش", f"${data['Cash']/1e9:.2f}B")
-            st.metric("نسبة الكاش من السوق", f"{data['Cash_Percent']:.1f}%", delta="الهدف > 20%")
-            st.caption(f"القيمة الحقيقية للمنشأة (EV): ${data['EV']/1e9:.2f}B")
+        # 1. تحليل الكاش (الهدف > 20%)
+        with c1:
+            cash_diff = data['Cash_Percent'] - 20
+            st.metric(
+                "نسبة الكاش (الهدف > 20%)", 
+                f"{data['Cash_Percent']:.1f}%", 
+                delta=f"{cash_diff:.1f}% فرق عن الهدف"
+            )
 
-        with col2:
-            st.markdown("### 2. سعر الخردة (Valuation)")
-            st.metric("مكرر الربحية المتوقع (Fwd P/E)", f"{data['PE_Fwd']:.2f}x", delta="رخيص < 15", delta_color="inverse")
-            st.metric("نمو المبيعات", f"{data['Growth']:.1f}%", delta="قوي > 15%")
-            st.metric("مكرر المبيعات (P/S)", f"{data['PS']:.2f}x", delta="خردة < 1.5", delta_color="inverse")
+        # 2. تحليل النمو (الهدف > 15%)
+        with c2:
+            growth_diff = data['Growth'] - 15
+            st.metric(
+                "النمو (الهدف > 15%)", 
+                f"{data['Growth']:.1f}%", 
+                delta=f"{growth_diff:.1f}% فرق عن الهدف"
+            )
+
+        # 3. تحليل السعر (الهدف P/E < 15) - معكوس (الأقل أفضل)
+        with c3:
+            # هنا نعكس المنطق: إذا كان المكرر 10 والهدف 15، الفرق 5 (إيجابي)
+            pe_gap = 15 - data['PE_Fwd'] 
+            st.metric(
+                "مكرر الربحية (الهدف < 15x)", 
+                f"{data['PE_Fwd']:.1f}x", 
+                delta=f"{pe_gap:.1f} (هامش أمان)",
+                delta_color="normal" # الأخضر يعني أرخص من الهدف
+            )
 
         st.markdown("---")
 
-        # === فحص المحرك (الرسم البياني) ===
-        st.markdown("## 📊 فحص المحرك (مسار الإيرادات)")
-        try:
-            fin = data['Financials']
-            if not fin.empty and 'Total Revenue' in fin.index:
-                rev_hist = fin.loc['Total Revenue'].iloc[:4][::-1]
-                years = [d.strftime('%Y') for d in rev_hist.index]
-                values = list(rev_hist.values)
-                
-                fig = go.Figure(data=[go.Bar(
-                    x=years, 
-                    y=values, 
-                    marker_color='#1f77b4',
-                    text=[f"${v/1e9:.1f}B" for v in values],
-                    textposition='auto'
-                )])
-                fig.update_layout(height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
-                st.plotly_chart(fig, use_container_width=True)
+        # === الرسم البياني ===
+        c_chart, c_news = st.columns([2, 1])
+        
+        with c_chart:
+            st.subheader("📈 مسار الإيرادات")
+            try:
+                fin = data['Financials']
+                if not fin.empty and 'Total Revenue' in fin.index:
+                    rev_hist = fin.loc['Total Revenue'].iloc[:4][::-1]
+                    years = [d.strftime('%Y') for d in rev_hist.index]
+                    values = list(rev_hist.values)
+                    
+                    fig = go.Figure(data=[go.Bar(x=years, y=values, marker_color='#1f77b4')])
+                    fig.update_layout(height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("الرسم البياني غير متاح.")
+            except:
+                st.info("تعذر الرسم.")
+
+        # === الأخبار ===
+        with c_news:
+            st.subheader("📰 الأخبار")
+            if data['News']:
+                for n in data['News']:
+                    title = n.get('title', 'No Title')
+                    link = n.get('link', '#')
+                    st.markdown(f"[{title}]({link})")
             else:
-                st.warning("البيانات التاريخية غير متوفرة للرسم.")
-        except Exception as e:
-            st.info("تعذر رسم المخطط البياني.")
-
-        # === الأخبار (مع إصلاح الخطأ السابق) ===
-        st.markdown("---")
-        st.markdown("## 📰 آخر الأخبار (الطبقة النوعية)")
-        
-        if data['News']:
-            for n in data['News']:
-                # --- هنا الإصلاح: استخدام .get لمنع الانهيار ---
-                link = n.get('link', '#')
-                title = n.get('title', 'عنوان غير متاح')
-                publisher = n.get('publisher', 'مصدر غير معروف')
-                
-                st.markdown(f"""
-                <div style="background-color: #1E1E1E; padding: 10px; margin-bottom: 8px; border-radius: 5px; border-left: 3px solid {v_color};">
-                    <a href="{link}" target="_blank" style="text-decoration: none; color: white; font-weight: bold;">{title}</a>
-                    <br><span style="color: gray; font-size: 0.8em;"> المصدر: {publisher}</span>
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.write("لا توجد أخبار حديثة.")
+                st.write("لا توجد أخبار.")
